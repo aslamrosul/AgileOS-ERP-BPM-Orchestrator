@@ -177,6 +177,16 @@ func main() {
 				analytics.GET("/summary", analyticsHandler.GetSummary)
 				analytics.GET("/insights", analyticsHandler.GetInsights)
 			}
+
+			// Digital Signature routes (all authenticated users)
+			signatureHandler := handlers.NewSignatureHandler(db)
+			signature := protected.Group("/signature")
+			{
+				signature.POST("/verify", signatureHandler.VerifySignature)
+				signature.GET("/task/:id", signatureHandler.GetTaskSignature)
+				signature.GET("/task/:id/integrity", signatureHandler.VerifyTaskIntegrity)
+				signature.GET("/task/:id/receipt", signatureHandler.GenerateTaskReceipt)
+			}
 		}
 	}
 

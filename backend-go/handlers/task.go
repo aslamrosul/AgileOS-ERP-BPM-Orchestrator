@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"agileos-backend/database"
+	"agileos-backend/internal/crypto"
+	"agileos-backend/logger"
 	"agileos-backend/messaging"
 	"agileos-backend/models"
 
@@ -57,12 +59,48 @@ func (h *TaskHandler) CompleteTask(c *gin.Context) {
 	now := time.Now()
 	task.Status = models.TaskStatusCompleted
 	task.CompletedAt = &now
+	task.ExecutedBy = req.ExecutedBy
 	task.Result = req.Result
+
+	// Generate digital signature
+	signatureData := crypto.SignatureData{
+		TaskID:     task.ID,
+		UserID:     req.ExecutedBy,
+		Timestamp:  now,
+		WorkflowID: task.ProcessInstanceID,
+		Action:     "completed",
+		Data:       req.Result,
+	}
+
+	task.DigitalSignature = crypto.GenerateSignature(signatureData)
+	task.SignatureMetadata = map[string]interface{}{
+		"signed_by":    req.ExecutedBy,
+		"signed_at":    now,
+		"action":       "completed",
+		"ip_address":   c.ClientIP(),
+		"user_agent":   c.GetHeader("User-Agent"),
+	}
 
 	if err := h.db.UpdateTaskInstance(task); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update task"})
 		return
 	}
+
+	// Log audit trail
+	logger.LogAudit("task_completed", req.ExecutedBy, task.ID, map[string]interface{}{
+		"step_name":         task.StepName,
+		"process_id":        task.ProcessInstanceID,
+		"digital_signature": task.DigitalSignature,
+		"result":            req.Result,
+	})
+
+	// Log BPM event
+	logger.LogBPM("task_completed", task.ProcessInstanceID, task.ID, map[string]interface{}{
+		"step_name":         task.StepName,
+		"executed_by":       req.ExecutedBy,
+		"digital_signature": task.DigitalSignature,
+		"completion_time":   now,
+	})
 
 	// Publish task completed event to NATS
 	event := messaging.TaskCompletedEvent{
@@ -79,10 +117,18 @@ func (h *TaskHandler) CompleteTask(c *gin.Context) {
 		return
 	}
 
+	// Generate QR code data for verification
+	baseURL := c.Request.Host
+	qrData := crypto.GenerateQRCodeData(task.ID, task.DigitalSignature, "https://"+baseURL)
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Task completed successfully",
-		"task_id": taskID,
-		"status":  "completed",
+		"message":           "Task completed successfully",
+		"task_id":           taskID,
+		"status":            "completed",
+		"digital_signature": task.DigitalSignature,
+		"qr_code_data":      qrData,
+		"signed_by":         req.ExecutedBy,
+		"signed_at":         now,
 	})
 }
 
