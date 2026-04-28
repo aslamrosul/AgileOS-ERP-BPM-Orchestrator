@@ -9,6 +9,7 @@ import (
 	"agileos-backend/database"
 	"agileos-backend/handlers"
 	"agileos-backend/messaging"
+	"agileos-backend/middleware"
 
 	"github.com/gin-gonic/gin"
 	"github.com/nats-io/nats.go"
@@ -93,15 +94,42 @@ func main() {
 	// API routes
 	api := r.Group("/api/v1")
 	{
-		workflowHandler := handlers.NewWorkflowHandler(db)
-		api.POST("/workflow", workflowHandler.CreateWorkflow)
-		api.GET("/workflows", workflowHandler.GetWorkflows)
-		api.GET("/workflow/:id", workflowHandler.GetWorkflow)
+		// Public routes (no authentication required)
+		authHandler := handlers.NewAuthHandler(db)
+		api.POST("/auth/login", authHandler.Login)
+		api.POST("/auth/register", authHandler.Register)
+		api.POST("/auth/refresh", authHandler.RefreshToken)
 
-		taskHandler := handlers.NewTaskHandler(db, natsClient)
-		api.POST("/task/:id/complete", taskHandler.CompleteTask)
-		api.GET("/tasks/pending/:assignedTo", taskHandler.GetPendingTasks)
-		api.POST("/process/start", taskHandler.StartProcess)
+		// Protected routes (authentication required)
+		protected := api.Group("")
+		protected.Use(middleware.AuthMiddleware())
+		{
+			// User profile
+			protected.GET("/auth/profile", authHandler.GetProfile)
+
+			// Workflow routes (all authenticated users)
+			workflowHandler := handlers.NewWorkflowHandler(db)
+			protected.GET("/workflows", workflowHandler.GetWorkflows)
+			protected.GET("/workflow/:id", workflowHandler.GetWorkflow)
+
+			// Workflow creation (admin only)
+			protected.POST("/workflow", middleware.AuthorizeRole("admin"), workflowHandler.CreateWorkflow)
+
+			// Task routes (all authenticated users)
+			taskHandler := handlers.NewTaskHandler(db, natsClient)
+			protected.GET("/tasks/pending/:assignedTo", taskHandler.GetPendingTasks)
+			protected.POST("/task/:id/complete", taskHandler.CompleteTask)
+
+			// Process routes (manager and above)
+			protected.POST("/process/start", middleware.AuthorizeRole("admin", "manager"), taskHandler.StartProcess)
+
+			// Admin routes (admin only)
+			admin := protected.Group("")
+			admin.Use(middleware.AuthorizeRole("admin"))
+			{
+				admin.GET("/users", authHandler.ListUsers)
+			}
+		}
 	}
 
 	// Start server

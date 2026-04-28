@@ -1,18 +1,15 @@
-# Data directories
-data/
-
-# Go
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.test
-*.out
-go.work
-
-# Docker
+# Environment variables
 .env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
 
 # IDE
 .vscode/
@@ -20,6 +17,43 @@ go.work
 *.swp
 *.swo
 
-# OS
-.DS_Store
-Thumbs.db
+# Docker volumes
+data/
+volumes/
+
+# SSL certificates
+deploy/nginx/ssl/*.pem
+deploy/nginx/ssl/*.key
+deploy/nginx/ssl/*.crt
+
+# Terraform
+deploy/azure/terraform/.terraform/
+deploy/azure/terraform/*.tfstate
+deploy/azure/terraform/*.tfstate.backup
+deploy/azure/terraform/.terraform.lock.hcl
+
+# Backups
+backups/
+*.backup
+*.bak
+
+# Build artifacts
+dist/
+build/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Dependencies
+node_modules/
+vendor/
+
+# Test coverage
+coverage/
+*.coverprofile
+
+# Temporary files
+tmp/
+temp/
+*.tmp
