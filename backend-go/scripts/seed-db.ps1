@@ -38,6 +38,6 @@ Write-Host "Or use SurrealDB CLI if installed:" -ForegroundColor Cyan
 Write-Host "   surreal sql --conn $surrealUrl --user $user --pass $pass --ns agileos --db main --file database/seed.surql" -ForegroundColor White
 Write-Host ""
 Write-Host "After seeding, verify with:" -ForegroundColor Cyan
-Write-Host "   SELECT * FROM workflow;" -ForegroundColor White
-Write-Host "   SELECT * FROM step;" -ForegroundColor White
+Write-Host '   SELECT * FROM workflow;' -ForegroundColor White
+Write-Host '   SELECT * FROM step;' -ForegroundColor White
 Write-Host ""

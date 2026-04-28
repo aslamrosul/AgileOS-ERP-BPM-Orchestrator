@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"agileos-backend/analytics"
 	"agileos-backend/database"
 	"agileos-backend/handlers"
 	"agileos-backend/messaging"
@@ -128,6 +129,21 @@ func main() {
 			admin.Use(middleware.AuthorizeRole("admin"))
 			{
 				admin.GET("/users", authHandler.ListUsers)
+			}
+
+			// Analytics routes (manager and admin)
+			analyticsService := analytics.NewService(db)
+			analyticsHandler := handlers.NewAnalyticsHandler(analyticsService)
+			
+			analytics := protected.Group("/analytics")
+			analytics.Use(middleware.AuthorizeRole("admin", "manager"))
+			{
+				analytics.GET("/overview", analyticsHandler.GetOverview)
+				analytics.GET("/workflows", analyticsHandler.GetWorkflowEfficiency)
+				analytics.GET("/steps", analyticsHandler.GetStepPerformance)
+				analytics.GET("/departments", analyticsHandler.GetDepartmentMetrics)
+				analytics.GET("/summary", analyticsHandler.GetSummary)
+				analytics.GET("/insights", analyticsHandler.GetInsights)
 			}
 		}
 	}

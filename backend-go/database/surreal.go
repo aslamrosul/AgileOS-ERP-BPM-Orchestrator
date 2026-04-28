@@ -385,3 +385,8 @@ func (s *SurrealDB) GetPendingTasks(assignedTo string) ([]models.TaskInstance, e
 
 	return tasks, nil
 }
+
+// Query executes a raw SurrealQL query (for analytics and custom queries)
+func (s *SurrealDB) Query(query string, params map[string]interface{}) (interface{}, error) {
+	return s.client.Query(query, params)
+}
