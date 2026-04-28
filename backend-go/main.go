@@ -1,14 +1,13 @@
 package main
 
 import (
-	"log"
-	"net/http"
 	"os"
 	"time"
 
 	"agileos-backend/analytics"
 	"agileos-backend/database"
 	"agileos-backend/handlers"
+	"agileos-backend/logger"
 	"agileos-backend/messaging"
 	"agileos-backend/middleware"
 
@@ -23,6 +22,17 @@ var (
 )
 
 func main() {
+	// Initialize structured logging
+	logLevel := getEnv("LOG_LEVEL", "info")
+	logToFile := getEnv("LOG_TO_FILE", "true") == "true"
+	logFilePath := getEnv("LOG_FILE_PATH", "./logs/agileos.log")
+	
+	if err := logger.InitLogger(logLevel, logToFile, logFilePath); err != nil {
+		panic("Failed to initialize logger: " + err.Error())
+	}
+
+	logger.Log.Info().Msg("🚀 Starting AgileOS BPM Engine...")
+
 	// Initialize SurrealDB connection
 	dbURL := getEnv("SURREAL_URL", "ws://agileos-db:8000/rpc")
 	dbUser := getEnv("SURREAL_USER", "root")
@@ -31,9 +41,13 @@ func main() {
 	var err error
 	db, err = database.ConnectDB(dbURL, dbUser, dbPass, "agileos", "main")
 	if err != nil {
-		log.Fatalf("Failed to connect to SurrealDB: %v", err)
+		logger.LogFatal("Failed to connect to SurrealDB", err, map[string]interface{}{
+			"url": dbURL,
+		})
 	}
 	defer db.Close()
+
+	logger.Log.Info().Str("url", dbURL).Msg("✓ Connected to SurrealDB")
 
 	// Initialize NATS connection
 	natsURL := getEnv("NATS_URL", "nats://agileos-nats:4222")
@@ -43,22 +57,24 @@ func main() {
 		nats.ReconnectWait(2*time.Second),
 	)
 	if err != nil {
-		log.Fatalf("Failed to connect to NATS: %v", err)
+		logger.LogFatal("Failed to connect to NATS", err, map[string]interface{}{
+			"url": natsURL,
+		})
 	}
 	defer nc.Close()
 
-	log.Println("✓ Connected to NATS")
+	logger.Log.Info().Str("url", natsURL).Msg("✓ Connected to NATS")
 
 	// Initialize NATS Client with orchestration
 	natsClient, err = messaging.InitNATS(natsURL, db)
 	if err != nil {
-		log.Fatalf("Failed to initialize NATS client: %v", err)
+		logger.LogFatal("Failed to initialize NATS client", err, nil)
 	}
 	defer natsClient.Close()
 
 	// Subscribe to task events
 	if err := natsClient.SubscribeTaskEvents(); err != nil {
-		log.Fatalf("Failed to subscribe to task events: %v", err)
+		logger.LogFatal("Failed to subscribe to task events", err, nil)
 	}
 
 	// Start NATS worker in background
@@ -67,6 +83,26 @@ func main() {
 	// Initialize Gin router
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
+
+	// Logging middleware
+	r.Use(func(c *gin.Context) {
+		start := time.Now()
+		path := c.Request.URL.Path
+		method := c.Request.Method
+
+		c.Next()
+
+		duration := time.Since(start)
+		statusCode := c.Writer.Status()
+
+		logger.Log.Info().
+			Str("method", method).
+			Str("path", path).
+			Int("status", statusCode).
+			Dur("duration_ms", duration).
+			Str("ip", c.ClientIP()).
+			Msg("HTTP Request")
+	})
 
 	// CORS middleware
 	r.Use(func(c *gin.Context) {
@@ -82,15 +118,11 @@ func main() {
 		c.Next()
 	})
 
-	// Health check endpoint
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":         "engine_running",
-			"database":       db != nil,
-			"message_broker": nc.IsConnected(),
-			"timestamp":      time.Now().Unix(),
-		})
-	})
+	// Health check endpoints
+	healthHandler := handlers.NewHealthHandler(db, nc)
+	r.GET("/health", healthHandler.GetHealth)
+	r.GET("/health/live", healthHandler.GetHealthLive)
+	r.GET("/health/ready", healthHandler.GetHealthReady)
 
 	// API routes
 	api := r.Group("/api/v1")
@@ -150,9 +182,11 @@ func main() {
 
 	// Start server
 	port := getEnv("PORT", "8080")
-	log.Printf("🚀 AgileOS Engine running on port %s", port)
+	logger.Log.Info().Str("port", port).Msg("🚀 AgileOS Engine running")
 	if err := r.Run(":" + port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+		logger.LogFatal("Failed to start server", err, map[string]interface{}{
+			"port": port,
+		})
 	}
 }
 
