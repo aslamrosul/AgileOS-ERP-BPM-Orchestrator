@@ -5,8 +5,6 @@ import (
 	"time"
 
 	"agileos-backend/models"
-
-	"github.com/surrealdb/surrealdb.go"
 )
 
 // CreateAuditLog saves an audit log entry to the database
@@ -15,25 +13,14 @@ func (s *SurrealDB) CreateAuditLog(log *models.AuditLog) error {
 
 	query := `CREATE audit_log CONTENT $log`
 
-	result, err := s.client.Query(query, map[string]interface{}{
-		"log": log,
-	})
-	if err != nil {
+	var created []models.AuditLog
+	if err := s.queryAndUnmarshal(query, map[string]interface{}{"log": log}, &created); err != nil {
 		return fmt.Errorf("failed to create audit log: %w", err)
 	}
 
-	// Extract ID from result
-	if resultArray, ok := result.([]interface{}); ok && len(resultArray) > 0 {
-		if outerMap, ok := resultArray[0].(map[string]interface{}); ok {
-			if resultField, ok := outerMap["result"].([]interface{}); ok && len(resultField) > 0 {
-				if innerMap, ok := resultField[0].(map[string]interface{}); ok {
-					if id, ok := innerMap["id"].(string); ok {
-						log.ID = id
-						return nil
-					}
-				}
-			}
-		}
+	if len(created) > 0 {
+		log.ID = created[0].ID
+		return nil
 	}
 
 	return fmt.Errorf("audit log created but ID extraction failed")
@@ -71,14 +58,9 @@ func (s *SurrealDB) GetAuditLogs(userID string, logType string, limit int) ([]mo
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
 
-	result, err := s.client.Query(query, params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get audit logs: %w", err)
-	}
-
 	var logs []models.AuditLog
-	if err := surrealdb.Unmarshal(result, &logs); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal audit logs: %w", err)
+	if err := s.queryAndUnmarshal(query, params, &logs); err != nil {
+		return nil, fmt.Errorf("failed to get audit logs: %w", err)
 	}
 
 	return logs, nil
@@ -90,25 +72,14 @@ func (s *SurrealDB) CreateWorkflowHistory(history *models.WorkflowHistory) error
 
 	query := `CREATE workflow_history CONTENT $history`
 
-	result, err := s.client.Query(query, map[string]interface{}{
-		"history": history,
-	})
-	if err != nil {
+	var created []models.WorkflowHistory
+	if err := s.queryAndUnmarshal(query, map[string]interface{}{"history": history}, &created); err != nil {
 		return fmt.Errorf("failed to create workflow history: %w", err)
 	}
 
-	// Extract ID
-	if resultArray, ok := result.([]interface{}); ok && len(resultArray) > 0 {
-		if outerMap, ok := resultArray[0].(map[string]interface{}); ok {
-			if resultField, ok := outerMap["result"].([]interface{}); ok && len(resultField) > 0 {
-				if innerMap, ok := resultField[0].(map[string]interface{}); ok {
-					if id, ok := innerMap["id"].(string); ok {
-						history.ID = id
-						return nil
-					}
-				}
-			}
-		}
+	if len(created) > 0 {
+		history.ID = created[0].ID
+		return nil
 	}
 
 	return fmt.Errorf("workflow history created but ID extraction failed")
@@ -122,16 +93,9 @@ func (s *SurrealDB) GetWorkflowHistory(workflowID string, limit int) ([]models.W
 		query += fmt.Sprintf(" LIMIT %d", limit)
 	}
 
-	result, err := s.client.Query(query, map[string]interface{}{
-		"workflow_id": workflowID,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get workflow history: %w", err)
-	}
-
 	var history []models.WorkflowHistory
-	if err := surrealdb.Unmarshal(result, &history); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal workflow history: %w", err)
+	if err := s.queryAndUnmarshal(query, map[string]interface{}{"workflow_id": workflowID}, &history); err != nil {
+		return nil, fmt.Errorf("failed to get workflow history: %w", err)
 	}
 
 	return history, nil
@@ -143,7 +107,7 @@ func (s *SurrealDB) CreatePerformanceMetric(metric *models.PerformanceMetric) er
 
 	query := `CREATE performance_metric CONTENT $metric`
 
-	_, err := s.client.Query(query, map[string]interface{}{
+	_, err := s.query(query, map[string]interface{}{
 		"metric": metric,
 	})
 	if err != nil {

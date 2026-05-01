@@ -1,6 +1,6 @@
 services:
   agileos-db:
-    image: surrealdb/surrealdb:latest
+    image: surrealdb/surrealdb:v1.4.2
     container_name: agileos-db
     ports:
       - "8002:8000"  # Changed to avoid conflict
@@ -46,6 +46,38 @@ services:
         reservations:
           cpus: '0.1'
           memory: 64M
+    networks:
+      - agileos-network
+
+  agileos-analytics:
+    build:
+      context: ./analytics-py
+      dockerfile: Dockerfile
+    container_name: agileos-analytics
+    ports:
+      - "8001:8001"
+    environment:
+      - SURREAL_URL=http://agileos-db:8000
+      - GO_BACKEND_URL=http://agileos-backend:8081
+      - SERVICE_PORT=8001
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - agileos-db
+      - agileos-nats
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import httpx; httpx.get(\"http://localhost:8001/health\")' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
     networks:
       - agileos-network
 

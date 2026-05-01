@@ -1,0 +1,197 @@
+basePath: /api/v1
+definitions:
+  models.LoginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  models.LoginResponse:
+    properties:
+      access_token:
+        type: string
+      refresh_token:
+        type: string
+      user:
+        $ref: '#/definitions/models.UserInfo'
+    type: object
+  models.RegisterRequest:
+    properties:
+      department:
+        type: string
+      email:
+        type: string
+      full_name:
+        type: string
+      password:
+        minLength: 8
+        type: string
+      role:
+        enum:
+        - admin
+        - manager
+        - employee
+        - finance
+        - procurement
+        type: string
+      username:
+        maxLength: 50
+        minLength: 3
+        type: string
+    required:
+    - email
+    - full_name
+    - password
+    - role
+    - username
+    type: object
+  models.UserInfo:
+    properties:
+      department:
+        type: string
+      email:
+        type: string
+      full_name:
+        type: string
+      id:
+        type: string
+      role:
+        type: string
+      username:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@agileos.com
+    name: API Support
+    url: https://agileos.com/support
+  description: Enterprise Business Process Management System with Workflow Engine,
+    Real-time Notifications, and Analytics
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: https://agileos.com/terms
+  title: AgileOS BPM API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user with username and password
+      parameters:
+      - description: Login credentials
+        in: body
+        name: credentials
+        required: true
+        schema:
+          $ref: '#/definitions/models.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successfully authenticated
+          schema:
+            $ref: '#/definitions/models.LoginResponse'
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Invalid username or password
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Account deactivated
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: User login
+      tags:
+      - Auth
+  /auth/profile:
+    get:
+      consumes:
+      - application/json
+      description: Get current authenticated user's profile information
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User profile
+          schema:
+            $ref: '#/definitions/models.UserInfo'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: User not found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get user profile
+      tags:
+      - Auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Create a new user account
+      parameters:
+      - description: User registration data
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/models.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: User created successfully
+          schema:
+            $ref: '#/definitions/models.LoginResponse'
+        "400":
+          description: Invalid request body
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: Username or email already exists
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Failed to create user
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Register new user
+      tags:
+      - Auth
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

@@ -7,8 +7,6 @@ import (
 
 	"agileos-backend/database"
 	"agileos-backend/models"
-
-	"github.com/surrealdb/surrealdb.go"
 )
 
 type Service struct {
@@ -119,7 +117,7 @@ func (s *Service) GetSummary(filter models.AnalyticsFilter) (*models.AnalyticsSu
 	// Parse process results
 	if processResult != nil {
 		var processData []map[string]interface{}
-		surrealdb.Unmarshal(processResult, &processData)
+		database.UnmarshalSurrealResult(processResult, &processData)
 		if len(processData) > 0 {
 			if total, ok := processData[0]["total"].(float64); ok {
 				summary.TotalProcesses = int(total)
@@ -136,7 +134,7 @@ func (s *Service) GetSummary(filter models.AnalyticsFilter) (*models.AnalyticsSu
 	// Parse task results
 	if taskResult != nil {
 		var taskData []map[string]interface{}
-		surrealdb.Unmarshal(taskResult, &taskData)
+		database.UnmarshalSurrealResult(taskResult, &taskData)
 		if len(taskData) > 0 {
 			if total, ok := taskData[0]["total"].(float64); ok {
 				summary.TotalTasks = int(total)
@@ -172,7 +170,7 @@ func (s *Service) GetWorkflowEfficiency(filter models.AnalyticsFilter) ([]models
 	}
 
 	var data []map[string]interface{}
-	if err := surrealdb.Unmarshal(result, &data); err != nil {
+	if err := database.UnmarshalSurrealResult(result, &data); err != nil {
 		return nil, err
 	}
 
@@ -220,7 +218,7 @@ func (s *Service) GetStepPerformance(filter models.AnalyticsFilter) ([]models.St
 	}
 
 	var data []map[string]interface{}
-	if err := surrealdb.Unmarshal(result, &data); err != nil {
+	if err := database.UnmarshalSurrealResult(result, &data); err != nil {
 		return nil, err
 	}
 
@@ -269,7 +267,7 @@ func (s *Service) GetTaskStatusBreakdown(filter models.AnalyticsFilter) ([]model
 	}
 
 	var data []map[string]interface{}
-	if err := surrealdb.Unmarshal(result, &data); err != nil {
+	if err := database.UnmarshalSurrealResult(result, &data); err != nil {
 		return nil, err
 	}
 
@@ -304,6 +302,7 @@ func (s *Service) GetDepartmentMetrics(filter models.AnalyticsFilter) ([]models.
 	// Simplified: Extract department from assigned_to field
 	query := `
 		SELECT 
+			assigned_to,
 			assigned_to AS department,
 			count() AS total_tasks,
 			count(status = 'completed') AS completed,
@@ -318,7 +317,7 @@ func (s *Service) GetDepartmentMetrics(filter models.AnalyticsFilter) ([]models.
 	}
 
 	var data []map[string]interface{}
-	if err := surrealdb.Unmarshal(result, &data); err != nil {
+	if err := database.UnmarshalSurrealResult(result, &data); err != nil {
 		return nil, err
 	}
 

@@ -1,8 +1,54 @@
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"fmt"
+	"time"
+)
 
 // User represents a user in the system
+// RecordID represents a SurrealDB record ID that can be either a string or an object
+type RecordID struct {
+	TB string `json:"tb,omitempty"`
+	ID string `json:"id,omitempty"`
+}
+
+// String returns the full record ID as a string
+func (r RecordID) String() string {
+	if r.TB != "" && r.ID != "" {
+		return r.TB + ":" + r.ID
+	}
+	return r.ID
+}
+
+// UnmarshalJSON handles both string and object formats for record IDs
+func (r *RecordID) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as string first
+	var str string
+	if err := json.Unmarshal(data, &str); err == nil {
+		r.ID = str
+		return nil
+	}
+	
+	// Try to unmarshal as object
+	var obj struct {
+		TB string `json:"tb"`
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(data, &obj); err == nil {
+		r.TB = obj.TB
+		r.ID = obj.ID
+		return nil
+	}
+	
+	return fmt.Errorf("invalid record ID format")
+}
+
+// MarshalJSON converts RecordID to JSON string
+func (r RecordID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(r.String())
+}
+
 type User struct {
 	ID             string    `json:"id,omitempty"`
 	Username       string    `json:"username"`

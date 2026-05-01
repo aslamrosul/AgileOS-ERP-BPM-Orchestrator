@@ -87,7 +87,7 @@ func (h *HealthHandler) checkDatabase() models.HealthCheck {
 	start := time.Now()
 	
 	// Try a simple query
-	_, err := h.db.Query("SELECT 1", nil)
+	_, err := h.db.Query("SELECT * FROM workflow LIMIT 1;", nil)
 	responseTime := time.Since(start).Milliseconds()
 
 	if err != nil {

@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"agileos-backend/models"
-
-	"github.com/surrealdb/surrealdb.go"
 )
 
 // CreateUser creates a new user in the database
@@ -18,26 +16,30 @@ func (s *SurrealDB) CreateUser(user *models.User) error {
 
 	query := `CREATE user CONTENT $user`
 
-	result, err := s.client.Query(query, map[string]interface{}{
-		"user": user,
-	})
-	if err != nil {
+	// Use intermediate struct to handle RecordID
+	type UserWithRecordID struct {
+		ID             models.RecordID `json:"id"`
+		Username       string          `json:"username"`
+		Email          string          `json:"email"`
+		PasswordHash   string          `json:"password_hash,omitempty"`
+		Role           string          `json:"role"`
+		FullName       string          `json:"full_name"`
+		Department     string          `json:"department,omitempty"`
+		IsActive       bool            `json:"is_active"`
+		CreatedAt      time.Time       `json:"created_at"`
+		UpdatedAt      time.Time       `json:"updated_at"`
+		LastLoginAt    *time.Time      `json:"last_login_at,omitempty"`
+	}
+
+	var created []UserWithRecordID
+	if err := s.queryAndUnmarshal(query, map[string]interface{}{"user": user}, &created); err != nil {
 		return fmt.Errorf("failed to create user: %w", err)
 	}
 
-	// Extract ID from result
-	if resultArray, ok := result.([]interface{}); ok && len(resultArray) > 0 {
-		if outerMap, ok := resultArray[0].(map[string]interface{}); ok {
-			if resultField, ok := outerMap["result"].([]interface{}); ok && len(resultField) > 0 {
-				if innerMap, ok := resultField[0].(map[string]interface{}); ok {
-					if id, ok := innerMap["id"].(string); ok {
-						user.ID = id
-						log.Printf("✓ User created: %s (ID: %s)", user.Username, user.ID)
-						return nil
-					}
-				}
-			}
-		}
+	if len(created) > 0 {
+		user.ID = created[0].ID.String()
+		log.Printf("✓ User created: %s (ID: %s)", user.Username, user.ID)
+		return nil
 	}
 
 	return fmt.Errorf("user created but ID extraction failed")
@@ -47,69 +49,138 @@ func (s *SurrealDB) CreateUser(user *models.User) error {
 func (s *SurrealDB) GetUserByUsername(username string) (*models.User, error) {
 	query := `SELECT * FROM user WHERE username = $username LIMIT 1`
 
-	result, err := s.client.Query(query, map[string]interface{}{
-		"username": username,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user: %w", err)
+	// Use intermediate struct to handle RecordID
+	type UserWithRecordID struct {
+		ID             models.RecordID `json:"id"`
+		Username       string          `json:"username"`
+		Email          string          `json:"email"`
+		PasswordHash   string          `json:"password_hash,omitempty"`
+		Role           string          `json:"role"`
+		FullName       string          `json:"full_name"`
+		Department     string          `json:"department,omitempty"`
+		IsActive       bool            `json:"is_active"`
+		CreatedAt      time.Time       `json:"created_at"`
+		UpdatedAt      time.Time       `json:"updated_at"`
+		LastLoginAt    *time.Time      `json:"last_login_at,omitempty"`
 	}
 
-	var users []models.User
-	if err := surrealdb.Unmarshal(result, &users); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal user: %w", err)
+	var users []UserWithRecordID
+	if err := s.queryAndUnmarshal(query, map[string]interface{}{"username": username}, &users); err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
 	if len(users) == 0 {
 		return nil, fmt.Errorf("user not found")
 	}
 
-	return &users[0], nil
+	// Convert to models.User
+	user := &models.User{
+		ID:           users[0].ID.String(),
+		Username:     users[0].Username,
+		Email:        users[0].Email,
+		PasswordHash: users[0].PasswordHash,
+		Role:         users[0].Role,
+		FullName:     users[0].FullName,
+		Department:   users[0].Department,
+		IsActive:     users[0].IsActive,
+		CreatedAt:    users[0].CreatedAt,
+		UpdatedAt:    users[0].UpdatedAt,
+		LastLoginAt:  users[0].LastLoginAt,
+	}
+
+	return user, nil
 }
 
 // GetUserByEmail retrieves a user by email
 func (s *SurrealDB) GetUserByEmail(email string) (*models.User, error) {
 	query := `SELECT * FROM user WHERE email = $email LIMIT 1`
 
-	result, err := s.client.Query(query, map[string]interface{}{
-		"email": email,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user: %w", err)
+	// Use intermediate struct to handle RecordID
+	type UserWithRecordID struct {
+		ID             models.RecordID `json:"id"`
+		Username       string          `json:"username"`
+		Email          string          `json:"email"`
+		PasswordHash   string          `json:"password_hash,omitempty"`
+		Role           string          `json:"role"`
+		FullName       string          `json:"full_name"`
+		Department     string          `json:"department,omitempty"`
+		IsActive       bool            `json:"is_active"`
+		CreatedAt      time.Time       `json:"created_at"`
+		UpdatedAt      time.Time       `json:"updated_at"`
+		LastLoginAt    *time.Time      `json:"last_login_at,omitempty"`
 	}
 
-	var users []models.User
-	if err := surrealdb.Unmarshal(result, &users); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal user: %w", err)
+	var users []UserWithRecordID
+	if err := s.queryAndUnmarshal(query, map[string]interface{}{"email": email}, &users); err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
 	if len(users) == 0 {
 		return nil, fmt.Errorf("user not found")
 	}
 
-	return &users[0], nil
+	// Convert to models.User
+	user := &models.User{
+		ID:           users[0].ID.String(),
+		Username:     users[0].Username,
+		Email:        users[0].Email,
+		PasswordHash: users[0].PasswordHash,
+		Role:         users[0].Role,
+		FullName:     users[0].FullName,
+		Department:   users[0].Department,
+		IsActive:     users[0].IsActive,
+		CreatedAt:    users[0].CreatedAt,
+		UpdatedAt:    users[0].UpdatedAt,
+		LastLoginAt:  users[0].LastLoginAt,
+	}
+
+	return user, nil
 }
 
 // GetUserByID retrieves a user by ID
 func (s *SurrealDB) GetUserByID(userID string) (*models.User, error) {
 	query := `SELECT * FROM $user`
 
-	result, err := s.client.Query(query, map[string]interface{}{
-		"user": userID,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user: %w", err)
+	// Use intermediate struct to handle RecordID
+	type UserWithRecordID struct {
+		ID             models.RecordID `json:"id"`
+		Username       string          `json:"username"`
+		Email          string          `json:"email"`
+		PasswordHash   string          `json:"password_hash,omitempty"`
+		Role           string          `json:"role"`
+		FullName       string          `json:"full_name"`
+		Department     string          `json:"department,omitempty"`
+		IsActive       bool            `json:"is_active"`
+		CreatedAt      time.Time       `json:"created_at"`
+		UpdatedAt      time.Time       `json:"updated_at"`
+		LastLoginAt    *time.Time      `json:"last_login_at,omitempty"`
 	}
 
-	var users []models.User
-	if err := surrealdb.Unmarshal(result, &users); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal user: %w", err)
+	var users []UserWithRecordID
+	if err := s.queryAndUnmarshal(query, map[string]interface{}{"user": userID}, &users); err != nil {
+		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 
 	if len(users) == 0 {
 		return nil, fmt.Errorf("user not found")
 	}
 
-	return &users[0], nil
+	// Convert to models.User
+	user := &models.User{
+		ID:           users[0].ID.String(),
+		Username:     users[0].Username,
+		Email:        users[0].Email,
+		PasswordHash: users[0].PasswordHash,
+		Role:         users[0].Role,
+		FullName:     users[0].FullName,
+		Department:   users[0].Department,
+		IsActive:     users[0].IsActive,
+		CreatedAt:    users[0].CreatedAt,
+		UpdatedAt:    users[0].UpdatedAt,
+		LastLoginAt:  users[0].LastLoginAt,
+	}
+
+	return user, nil
 }
 
 // UpdateUserLastLogin updates the last login timestamp
@@ -117,7 +188,7 @@ func (s *SurrealDB) UpdateUserLastLogin(userID string) error {
 	now := time.Now()
 	query := fmt.Sprintf(`UPDATE %s SET last_login_at = $timestamp`, userID)
 
-	_, err := s.client.Query(query, map[string]interface{}{
+	_, err := s.query(query, map[string]interface{}{
 		"timestamp": now,
 	})
 	if err != nil {
@@ -132,7 +203,7 @@ func (s *SurrealDB) UpdateUser(user *models.User) error {
 	user.UpdatedAt = time.Now()
 	query := fmt.Sprintf(`UPDATE %s MERGE $user`, user.ID)
 
-	_, err := s.client.Query(query, map[string]interface{}{
+	_, err := s.query(query, map[string]interface{}{
 		"user": user,
 	})
 	if err != nil {
@@ -147,7 +218,7 @@ func (s *SurrealDB) UpdateUser(user *models.User) error {
 func (s *SurrealDB) DeactivateUser(userID string) error {
 	query := fmt.Sprintf(`UPDATE %s SET is_active = false, updated_at = $timestamp`, userID)
 
-	_, err := s.client.Query(query, map[string]interface{}{
+	_, err := s.query(query, map[string]interface{}{
 		"timestamp": time.Now(),
 	})
 	if err != nil {
@@ -162,14 +233,9 @@ func (s *SurrealDB) DeactivateUser(userID string) error {
 func (s *SurrealDB) ListUsers() ([]models.User, error) {
 	query := `SELECT * FROM user ORDER BY created_at DESC`
 
-	result, err := s.client.Query(query, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list users: %w", err)
-	}
-
 	var users []models.User
-	if err := surrealdb.Unmarshal(result, &users); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal users: %w", err)
+	if err := s.queryAndUnmarshal(query, nil, &users); err != nil {
+		return nil, fmt.Errorf("failed to list users: %w", err)
 	}
 
 	return users, nil

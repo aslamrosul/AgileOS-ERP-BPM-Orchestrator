@@ -115,3 +115,32 @@ func getEnv(key, fallback string) string {
 	}
 	return fallback
 }
+
+// GenerateJWTWithExpiration generates a JWT token with custom expiration (for testing)
+func GenerateJWTWithExpiration(claims *Claims, expiration time.Time) (string, error) {
+	claims.RegisteredClaims = jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(expiration),
+		IssuedAt:  jwt.NewNumericDate(time.Now()),
+		NotBefore: jwt.NewNumericDate(time.Now()),
+		Issuer:    "agileos-bpm",
+		Subject:   claims.UserID,
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString(jwtSecret)
+	if err != nil {
+		return "", err
+	}
+
+	return tokenString, nil
+}
+
+// GenerateJWTFromClaims generates JWT with Claims struct (for testing)
+func GenerateJWTFromClaims(claims *Claims) (string, error) {
+	return GenerateJWTWithExpiration(claims, time.Now().Add(accessTokenExpiry))
+}
+
+// ValidateJWT is an alias for ValidateToken (for consistency)
+func ValidateJWT(tokenString string) (*Claims, error) {
+	return ValidateToken(tokenString)
+}
