@@ -438,3 +438,183 @@ func (h *AccountingHandler) calculateAccountBalanceForPeriod(accountCode string,
 
 	return balance
 }
+
+// GetARAgingReport generates accounts receivable aging report
+func (h *AccountingHandler) GetARAgingReport(c *gin.Context) {
+	asOfDateStr := c.Query("as_of_date")
+	if asOfDateStr == "" {
+		asOfDateStr = time.Now().Format("2006-01-02")
+	}
+
+	asOfDate, err := time.Parse("2006-01-02", asOfDateStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date format"})
+		return
+	}
+
+	// Get all unpaid sales invoices
+	invoices, err := h.db.QuerySlice(
+		`SELECT * FROM sales_invoice 
+		WHERE payment_status IN ['unpaid', 'partial', 'overdue'] 
+		AND status != 'cancelled'
+		ORDER BY customer_name ASC, due_date ASC`,
+		nil,
+	)
+	if err != nil {
+		logger.LogError("Failed to get sales invoices", err, nil)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate AR aging report"})
+		return
+	}
+
+	report := models.AgingReport{
+		ReportType:  "AR",
+		AsOfDate:    asOfDate,
+		Total0_30:   decimal.Zero,
+		Total31_60:  decimal.Zero,
+		Total61_90:  decimal.Zero,
+		Total90Plus: decimal.Zero,
+		TotalAmount: decimal.Zero,
+	}
+
+	var agingItems []models.AgingReportItem
+
+	for _, inv := range invoices {
+		invoice := inv.(map[string]interface{})
+		
+		dueDate, _ := time.Parse(time.RFC3339, invoice["due_date"].(string))
+		daysOverdue := int(asOfDate.Sub(dueDate).Hours() / 24)
+		
+		totalAmount := decimal.NewFromFloat(invoice["total_amount"].(float64))
+		receivedAmount := decimal.Zero
+		if invoice["received_amount"] != nil {
+			receivedAmount = decimal.NewFromFloat(invoice["received_amount"].(float64))
+		}
+		outstandingAmount := totalAmount.Sub(receivedAmount)
+
+		item := models.AgingReportItem{
+			PartyID:           invoice["customer_id"].(string),
+			PartyName:         invoice["customer_name"].(string),
+			InvoiceNumber:     invoice["invoice_number"].(string),
+			InvoiceDate:       invoice["invoice_date"].(time.Time),
+			DueDate:           dueDate,
+			TotalAmount:       totalAmount,
+			OutstandingAmount: outstandingAmount,
+			DaysOverdue:       daysOverdue,
+		}
+
+		// Categorize by aging bucket
+		if daysOverdue <= 0 {
+			item.Amount0_30 = outstandingAmount
+			report.Total0_30 = report.Total0_30.Add(outstandingAmount)
+		} else if daysOverdue <= 30 {
+			item.Amount0_30 = outstandingAmount
+			report.Total0_30 = report.Total0_30.Add(outstandingAmount)
+		} else if daysOverdue <= 60 {
+			item.Amount31_60 = outstandingAmount
+			report.Total31_60 = report.Total31_60.Add(outstandingAmount)
+		} else if daysOverdue <= 90 {
+			item.Amount61_90 = outstandingAmount
+			report.Total61_90 = report.Total61_90.Add(outstandingAmount)
+		} else {
+			item.Amount90Plus = outstandingAmount
+			report.Total90Plus = report.Total90Plus.Add(outstandingAmount)
+		}
+
+		report.TotalAmount = report.TotalAmount.Add(outstandingAmount)
+		agingItems = append(agingItems, item)
+	}
+
+	report.Items = agingItems
+
+	c.JSON(http.StatusOK, report)
+}
+
+// GetAPAgingReport generates accounts payable aging report
+func (h *AccountingHandler) GetAPAgingReport(c *gin.Context) {
+	asOfDateStr := c.Query("as_of_date")
+	if asOfDateStr == "" {
+		asOfDateStr = time.Now().Format("2006-01-02")
+	}
+
+	asOfDate, err := time.Parse("2006-01-02", asOfDateStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date format"})
+		return
+	}
+
+	// Get all unpaid purchase invoices
+	invoices, err := h.db.QuerySlice(
+		`SELECT * FROM purchase_invoice 
+		WHERE payment_status IN ['unpaid', 'partial', 'overdue'] 
+		AND status != 'cancelled'
+		ORDER BY vendor_name ASC, due_date ASC`,
+		nil,
+	)
+	if err != nil {
+		logger.LogError("Failed to get purchase invoices", err, nil)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate AP aging report"})
+		return
+	}
+
+	report := models.AgingReport{
+		ReportType:  "AP",
+		AsOfDate:    asOfDate,
+		Total0_30:   decimal.Zero,
+		Total31_60:  decimal.Zero,
+		Total61_90:  decimal.Zero,
+		Total90Plus: decimal.Zero,
+		TotalAmount: decimal.Zero,
+	}
+
+	var agingItems []models.AgingReportItem
+
+	for _, inv := range invoices {
+		invoice := inv.(map[string]interface{})
+		
+		dueDate, _ := time.Parse(time.RFC3339, invoice["due_date"].(string))
+		daysOverdue := int(asOfDate.Sub(dueDate).Hours() / 24)
+		
+		totalAmount := decimal.NewFromFloat(invoice["total_amount"].(float64))
+		paidAmount := decimal.Zero
+		if invoice["paid_amount"] != nil {
+			paidAmount = decimal.NewFromFloat(invoice["paid_amount"].(float64))
+		}
+		outstandingAmount := totalAmount.Sub(paidAmount)
+
+		item := models.AgingReportItem{
+			PartyID:           invoice["vendor_id"].(string),
+			PartyName:         invoice["vendor_name"].(string),
+			InvoiceNumber:     invoice["invoice_number"].(string),
+			InvoiceDate:       invoice["invoice_date"].(time.Time),
+			DueDate:           dueDate,
+			TotalAmount:       totalAmount,
+			OutstandingAmount: outstandingAmount,
+			DaysOverdue:       daysOverdue,
+		}
+
+		// Categorize by aging bucket
+		if daysOverdue <= 0 {
+			item.Amount0_30 = outstandingAmount
+			report.Total0_30 = report.Total0_30.Add(outstandingAmount)
+		} else if daysOverdue <= 30 {
+			item.Amount0_30 = outstandingAmount
+			report.Total0_30 = report.Total0_30.Add(outstandingAmount)
+		} else if daysOverdue <= 60 {
+			item.Amount31_60 = outstandingAmount
+			report.Total31_60 = report.Total31_60.Add(outstandingAmount)
+		} else if daysOverdue <= 90 {
+			item.Amount61_90 = outstandingAmount
+			report.Total61_90 = report.Total61_90.Add(outstandingAmount)
+		} else {
+			item.Amount90Plus = outstandingAmount
+			report.Total90Plus = report.Total90Plus.Add(outstandingAmount)
+		}
+
+		report.TotalAmount = report.TotalAmount.Add(outstandingAmount)
+		agingItems = append(agingItems, item)
+	}
+
+	report.Items = agingItems
+
+	c.JSON(http.StatusOK, report)
+}

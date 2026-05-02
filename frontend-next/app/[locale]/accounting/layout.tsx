@@ -18,61 +18,61 @@ import {
 const navigation = [
   {
     name: 'Dashboard',
-    href: '/accounting',
+    href: '/en/accounting',
     icon: LayoutDashboard,
     description: 'Overview & Analytics'
   },
   {
     name: 'Chart of Accounts',
-    href: '/accounting/chart-of-accounts',
+    href: '/en/accounting/chart-of-accounts',
     icon: BookOpen,
     description: 'Account Structure'
   },
   {
     name: 'Journal Entries',
-    href: '/accounting/journal-entries',
+    href: '/en/accounting/journal-entries',
     icon: FileText,
     description: 'General Ledger'
   },
   {
     name: 'Vendors',
-    href: '/accounting/vendors',
+    href: '/en/accounting/vendors',
     icon: Users,
     description: 'Supplier Management'
   },
   {
     name: 'Customers',
-    href: '/accounting/customers',
+    href: '/en/accounting/customers',
     icon: ShoppingCart,
     description: 'Customer Management'
   },
   {
     name: 'Invoices',
-    href: '/accounting/invoices',
+    href: '/en/accounting/invoices',
     icon: FileText,
     description: 'AP & AR'
   },
   {
     name: 'Payments',
-    href: '/accounting/payments',
+    href: '/en/accounting/payments',
     icon: DollarSign,
     description: 'Payment Transactions'
   },
   {
     name: 'Reports',
-    href: '/accounting/reports',
+    href: '/en/accounting/reports',
     icon: PieChart,
     description: 'Financial Reports'
   },
   {
     name: 'Budget',
-    href: '/accounting/budget',
+    href: '/en/accounting/budget',
     icon: TrendingUp,
     description: 'Budget Management'
   },
   {
     name: 'Settings',
-    href: '/accounting/settings',
+    href: '/en/accounting/settings',
     icon: Settings,
     description: 'Configuration'
   }
@@ -86,7 +86,7 @@ export default function AccountingLayout({
   const pathname = usePathname();
 
   const isActive = (href: string) => {
-    if (href === '/accounting') {
+    if (href === '/en/accounting') {
       return pathname === href;
     }
     return pathname?.startsWith(href);

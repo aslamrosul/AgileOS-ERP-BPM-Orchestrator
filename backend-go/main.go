@@ -325,6 +325,8 @@ func main() {
 				accounting.GET("/reports/cash-flow", accountingHandler.GetCashFlow)
 				accounting.GET("/reports/trial-balance", accountingHandler.GetTrialBalance)
 				accounting.GET("/reports/general-ledger", accountingHandler.GetGeneralLedger)
+				accounting.GET("/reports/ar-aging", accountingHandler.GetARAgingReport)
+				accounting.GET("/reports/ap-aging", accountingHandler.GetAPAgingReport)
 
 				// Budget Management
 				accounting.POST("/budgets", accountingHandler.CreateBudget)
@@ -334,6 +336,19 @@ func main() {
 				accounting.DELETE("/budgets/:id", accountingHandler.DeleteBudget)
 				accounting.POST("/budgets/:id/approve", accountingHandler.ApproveBudget)
 				accounting.GET("/budgets/:id/variance", accountingHandler.GetBudgetVariance)
+
+				// Payment Management
+				accounting.POST("/payments", accountingHandler.CreatePayment)
+				accounting.GET("/payments", accountingHandler.GetPayments)
+				accounting.GET("/payments/:id", accountingHandler.GetPayment)
+				accounting.PUT("/payments/:id", accountingHandler.UpdatePayment)
+				accounting.DELETE("/payments/:id", accountingHandler.DeletePayment)
+				accounting.POST("/payments/:id/clear", accountingHandler.ClearPayment)
+				accounting.POST("/payments/:id/cancel", accountingHandler.CancelPayment)
+
+				// Settings
+				accounting.GET("/settings", accountingHandler.GetSettings)
+				accounting.POST("/settings", accountingHandler.SaveSettings)
 			}
 
 			// HRM routes (admin, manager, hr)
