@@ -54,6 +54,7 @@ export default function AuditPage() {
   const [statistics, setStatistics] = useState<AuditStatistics | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
 
   // Filters
   const [filters, setFilters] = useState({
@@ -83,12 +84,21 @@ export default function AuditPage() {
       return;
     }
 
-    fetchAuditTrails();
-    fetchStatistics();
+    // Only fetch once on mount or when filters/pagination change
+    if (!isFetching) {
+      fetchAuditTrails();
+      fetchStatistics();
+    }
   }, [currentUser, router, filters, pagination.offset]);
 
   const fetchAuditTrails = async () => {
+    // Prevent multiple simultaneous requests
+    if (isFetching) {
+      return;
+    }
+
     try {
+      setIsFetching(true);
       setLoading(true);
       const params = new URLSearchParams();
       
@@ -114,6 +124,7 @@ export default function AuditPage() {
       console.error('Failed to fetch audit trails:', error);
     } finally {
       setLoading(false);
+      setIsFetching(false);
     }
   };
 

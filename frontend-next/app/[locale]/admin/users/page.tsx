@@ -47,13 +47,14 @@ export default function UsersManagementPage() {
       return;
     }
     
-    if (currentUser.role !== 'admin') {
+    // Allow admin and manager to access user management
+    if (!['admin', 'manager'].includes(currentUser.role)) {
       router.push('/en');
       return;
     }
 
     fetchUsers();
-  }, [currentUser, router]);
+  }, []); // Empty dependency to run once on mount
 
   const fetchUsers = async () => {
     try {

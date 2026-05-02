@@ -71,20 +71,6 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!currentUser) {
-      router.push('/en/login');
-      return;
-    }
-    
-    if (!['admin', 'manager'].includes(currentUser.role)) {
-      router.push('/en');
-      return;
-    }
-
-    fetchAnalytics();
-  }, [currentUser, router]);
-
   const fetchAnalytics = async () => {
     try {
       setLoading(true);
@@ -106,23 +92,26 @@ export default function AnalyticsPage() {
     }
   };
 
-  if (!currentUser) {
+  useEffect(() => {
+    if (!currentUser) {
+      router.push('/en/login');
+      return;
+    }
+    
+    if (!['admin', 'manager'].includes(currentUser.role)) {
+      router.push('/en');
+      return;
+    }
+
+    fetchAnalytics();
+  }, []); // Empty dependency array - only run once on mount
+
+  if (!currentUser || loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading analytics...</p>
         </div>
       </div>
     );
