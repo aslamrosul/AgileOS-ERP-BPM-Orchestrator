@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { authenticatedFetch } from '@/lib/auth';
+import { useRouter } from 'next/navigation';
+import { getUser, authenticatedFetch } from '@/lib/auth';
 import {
   BarChart,
   Bar,
@@ -15,7 +16,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { AlertTriangle, TrendingUp, Clock, CheckCircle } from 'lucide-react';
+import { AlertTriangle, TrendingUp, Clock, CheckCircle, RefreshCw, Activity } from 'lucide-react';
 
 interface AnalyticsData {
   summary: {
@@ -63,17 +64,31 @@ interface AnalyticsData {
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
 export default function AnalyticsPage() {
+  const router = useRouter();
+  const currentUser = getUser();
+  
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!currentUser) {
+      router.push('/en/login');
+      return;
+    }
+    
+    if (!['admin', 'manager'].includes(currentUser.role)) {
+      router.push('/en');
+      return;
+    }
+
     fetchAnalytics();
-  }, []);
+  }, [currentUser, router]);
 
   const fetchAnalytics = async () => {
     try {
       setLoading(true);
+      setError(null);
       const response = await authenticatedFetch(
         `${process.env.NEXT_PUBLIC_API_URL}/api/v1/analytics/overview?days=7`
       );
@@ -90,6 +105,17 @@ export default function AnalyticsPage() {
       setLoading(false);
     }
   };
+
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -120,14 +146,30 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Business Analytics Dashboard</h1>
-          <p className="text-gray-600 mt-2">Last 7 days performance overview</p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+                <Activity className="w-8 h-8 text-indigo-600" />
+                Business Analytics Dashboard
+              </h1>
+              <p className="text-gray-600 mt-2">Last 7 days performance overview</p>
+            </div>
+            <button
+              onClick={fetchAnalytics}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Refresh
+            </button>
+          </div>
         </div>
+      </div>
 
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* KPI Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <KPICard
@@ -168,7 +210,7 @@ export default function AnalyticsPage() {
                 <YAxis label={{ value: 'Hours', angle: -90, position: 'insideLeft' }} />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="avg_duration_hours" fill="#3b82f6" name="Avg Duration (hours)" />
+                <Bar dataKey="avg_duration_hours" fill="#3b82f6" name="Avg Duration" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -235,6 +277,16 @@ export default function AnalyticsPage() {
             </div>
           </div>
         )}
+
+        {/* Back Button */}
+        <div className="mt-8">
+          <a
+            href="/en"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+          >
+            ← Back to Home
+          </a>
+        </div>
       </div>
     </div>
   );

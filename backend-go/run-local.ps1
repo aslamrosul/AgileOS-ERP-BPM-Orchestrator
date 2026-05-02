@@ -1,10 +1,10 @@
 # Development script untuk menjalankan backend di local
 # Services (SurrealDB & NATS) harus sudah running via docker-compose
 
-$env:SURREAL_URL="ws://localhost:8000/rpc"
+$env:SURREAL_URL="ws://localhost:8002/rpc"
 $env:SURREAL_USER="root"
 $env:SURREAL_PASS="root"
-$env:NATS_URL="nats://localhost:4222"
+$env:NATS_URL="nats://localhost:4223"
 $env:PORT="8080"
 
 Write-Host "🚀 Starting AgileOS Engine (Local Development Mode)" -ForegroundColor Green

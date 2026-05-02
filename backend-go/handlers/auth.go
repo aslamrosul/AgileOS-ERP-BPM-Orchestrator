@@ -20,6 +20,17 @@ func NewAuthHandler(db *database.SurrealDB) *AuthHandler {
 }
 
 // Login handles user login
+// @Summary User login
+// @Description Authenticate user with username and password
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param credentials body models.LoginRequest true "Login credentials"
+// @Success 200 {object} models.LoginResponse "Successfully authenticated"
+// @Failure 400 {object} map[string]string "Invalid request body"
+// @Failure 401 {object} map[string]string "Invalid username or password"
+// @Failure 403 {object} map[string]string "Account deactivated"
+// @Router /auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req models.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -27,17 +38,25 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	log.Printf("Login attempt for username: %s", req.Username)
+
 	// Get user from database
 	user, err := h.db.GetUserByUsername(req.Username)
 	if err != nil {
+		log.Printf("Failed to get user '%s': %v", req.Username, err)
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "Invalid username or password",
 		})
 		return
 	}
 
+	log.Printf("User found: %s (ID: %s, PasswordHash length: %d)", user.Username, user.ID, len(user.PasswordHash))
+
+	log.Printf("User found: %s (ID: %s, PasswordHash length: %d)", user.Username, user.ID, len(user.PasswordHash))
+
 	// Check if user is active
 	if !user.IsActive {
+		log.Printf("User %s is not active", user.Username)
 		c.JSON(http.StatusForbidden, gin.H{
 			"error": "Account is deactivated. Please contact administrator.",
 		})
@@ -45,12 +64,16 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	// Verify password
+	log.Printf("Verifying password for user: %s", user.Username)
 	if err := auth.VerifyPassword(user.PasswordHash, req.Password); err != nil {
+		log.Printf("Password verification failed for user %s: %v", user.Username, err)
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "Invalid username or password",
 		})
 		return
 	}
+
+	log.Printf("Password verified successfully for user: %s", user.Username)
 
 	// Generate tokens
 	accessToken, err := auth.GenerateJWT(user.ID, user.Username, user.Role, user.Email)
@@ -90,6 +113,17 @@ func (h *AuthHandler) Login(c *gin.Context) {
 }
 
 // Register handles user registration
+// @Summary Register new user
+// @Description Create a new user account
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param user body models.RegisterRequest true "User registration data"
+// @Success 201 {object} models.LoginResponse "User created successfully"
+// @Failure 400 {object} map[string]string "Invalid request body"
+// @Failure 409 {object} map[string]string "Username or email already exists"
+// @Failure 500 {object} map[string]string "Failed to create user"
+// @Router /auth/register [post]
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req models.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -183,6 +217,16 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 }
 
 // GetProfile returns current user profile
+// @Summary Get user profile
+// @Description Get current authenticated user's profile information
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} models.UserInfo "User profile"
+// @Failure 401 {object} map[string]string "Unauthorized"
+// @Failure 404 {object} map[string]string "User not found"
+// @Router /auth/profile [get]
 func (h *AuthHandler) GetProfile(c *gin.Context) {
 	userID := c.GetString("user_id")
 

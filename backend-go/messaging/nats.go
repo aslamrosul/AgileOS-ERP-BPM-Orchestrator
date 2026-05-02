@@ -13,8 +13,9 @@ import (
 )
 
 type NATSClient struct {
-	conn *nats.Conn
-	db   *database.SurrealDB
+	Conn       *nats.Conn // Changed to public for access from other packages
+	db         *database.SurrealDB
+	workerPool chan struct{} // Semaphore for limiting concurrent workers
 }
 
 // TaskCompletedEvent represents a task completion event
@@ -62,16 +63,20 @@ func InitNATS(natsURL string, db *database.SurrealDB) (*NATSClient, error) {
 
 	log.Printf("[NATS] Connected to %s", natsURL)
 
+	// Create worker pool with max 50 concurrent workers
+	workerPool := make(chan struct{}, 50)
+
 	return &NATSClient{
-		conn: nc,
-		db:   db,
+		Conn:       nc,
+		db:         db,
+		workerPool: workerPool,
 	}, nil
 }
 
 // Close closes NATS connection
 func (n *NATSClient) Close() {
-	if n.conn != nil {
-		n.conn.Close()
+	if n.Conn != nil {
+		n.Conn.Close()
 		log.Println("[NATS] Connection closed")
 	}
 }
@@ -83,7 +88,7 @@ func (n *NATSClient) PublishTaskCompleted(event TaskCompletedEvent) error {
 		return fmt.Errorf("failed to marshal event: %w", err)
 	}
 
-	if err := n.conn.Publish(SubjectTaskCompleted, data); err != nil {
+	if err := n.Conn.Publish(SubjectTaskCompleted, data); err != nil {
 		return fmt.Errorf("failed to publish event: %w", err)
 	}
 
@@ -98,7 +103,7 @@ func (n *NATSClient) PublishTaskStarted(event TaskStartedEvent) error {
 		return fmt.Errorf("failed to marshal event: %w", err)
 	}
 
-	if err := n.conn.Publish(SubjectTaskStarted, data); err != nil {
+	if err := n.Conn.Publish(SubjectTaskStarted, data); err != nil {
 		return fmt.Errorf("failed to publish event: %w", err)
 	}
 
@@ -107,23 +112,31 @@ func (n *NATSClient) PublishTaskStarted(event TaskStartedEvent) error {
 	return nil
 }
 
-// SubscribeTaskEvents subscribes to task events and handles orchestration
+// SubscribeTaskEvents subscribes to task events and handles orchestration with worker pool
 func (n *NATSClient) SubscribeTaskEvents() error {
-	// Subscribe to task.completed
-	_, err := n.conn.Subscribe(SubjectTaskCompleted, func(msg *nats.Msg) {
-		var event TaskCompletedEvent
-		if err := json.Unmarshal(msg.Data, &event); err != nil {
-			log.Printf("[NATS] Error unmarshaling event: %v", err)
-			return
-		}
+	// Subscribe to task.completed with worker pool
+	_, err := n.Conn.Subscribe(SubjectTaskCompleted, func(msg *nats.Msg) {
+		// Acquire worker slot (blocks if pool is full)
+		n.workerPool <- struct{}{}
+		
+		// Process in goroutine
+		go func() {
+			defer func() { <-n.workerPool }() // Release worker slot
+			
+			var event TaskCompletedEvent
+			if err := json.Unmarshal(msg.Data, &event); err != nil {
+				log.Printf("[NATS] Error unmarshaling event: %v", err)
+				return
+			}
 
-		log.Printf("[NATS] ⚡ Received: Task %s completed at step %s", 
-			event.TaskID, event.CurrentStepID)
+			log.Printf("[NATS] ⚡ Received: Task %s completed at step %s", 
+				event.TaskID, event.CurrentStepID)
 
-		// Handle orchestration
-		if err := n.handleTaskCompletion(event); err != nil {
-			log.Printf("[NATS] ❌ Orchestration error: %v", err)
-		}
+			// Handle orchestration
+			if err := n.handleTaskCompletion(event); err != nil {
+				log.Printf("[NATS] ❌ Orchestration error: %v", err)
+			}
+		}()
 	})
 
 	if err != nil {
@@ -133,7 +146,7 @@ func (n *NATSClient) SubscribeTaskEvents() error {
 	log.Printf("[NATS] 📡 Subscribed to %s", SubjectTaskCompleted)
 
 	// Subscribe to task.started (for logging/monitoring)
-	_, err = n.conn.Subscribe(SubjectTaskStarted, func(msg *nats.Msg) {
+	_, err = n.Conn.Subscribe(SubjectTaskStarted, func(msg *nats.Msg) {
 		var event TaskStartedEvent
 		if err := json.Unmarshal(msg.Data, &event); err != nil {
 			log.Printf("[NATS] Error unmarshaling event: %v", err)

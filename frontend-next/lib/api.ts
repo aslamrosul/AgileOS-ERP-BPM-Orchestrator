@@ -1,6 +1,7 @@
 import axios from "axios";
 import { Node, Edge } from "reactflow";
 import { BPMNodeData } from "@/components/BPMNode";
+import { getAccessToken } from "./auth";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
@@ -11,6 +12,23 @@ const api = axios.create({
   },
   timeout: 10000,
 });
+
+// Add request interceptor to include auth token
+api.interceptors.request.use(
+  (config) => {
+    const token = getAccessToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Export api instance
+export { api };
 
 export interface WorkflowPayload {
   name: string;
